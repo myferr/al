@@ -9,6 +9,20 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+def split_message(text, max_length=2000):
+    lines = text.split('\n')
+    chunks = []
+    current_chunk = ''
+    for line in lines:
+        if len(current_chunk) + len(line) + 1 > max_length:
+            chunks.append(current_chunk)
+            current_chunk = ''
+        current_chunk += line + '\n'
+    if current_chunk:
+        chunks.append(current_chunk)
+    return chunks
+
+
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
@@ -53,7 +67,9 @@ async def on_message(message):
             reply = response['message']['content']
             print(f"Ollama response: {reply}")
         save_message("assistant", reply)
-        await message.reply(reply)
+
+        for chunk in split_message(reply):
+            await message.channel.send(chunk)
     except Exception as e:
         print(f"Error with Ollama: {e}")
         await message.reply(f"Something went wrong with my brain: {e}")
