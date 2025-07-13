@@ -1,0 +1,59 @@
+import discord
+from ollama_client import get_ollama_client, OLLAMA_MODEL, SYSTEM_PROMPT
+from memory import load_memory, save_message
+from settings import OLLAMA_HOST
+
+ollama_client = get_ollama_client()
+
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'Logged in as {client.user} (ID: {client.user.id})')
+    await client.change_presence(activity=discord.Game(name="Chatting with Al"))
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+
+    mention_id = f'<@{client.user.id}>'
+    mention_nick = f'<@!{client.user.id}>'
+
+    contains_ping = mention_id in message.content or mention_nick in message.content
+    is_reply_to_bot = (
+        message.reference and message.reference.resolved
+        and message.reference.resolved.author == client.user
+    )
+
+    if not (contains_ping or is_reply_to_bot):
+        return
+
+    content = message.content.replace(mention_id, '').replace(mention_nick, '').strip()
+    if not content:
+        await message.reply(f"Hey {message.author.mention}, you mentioned me but didn't say anything!")
+        return
+
+    if not ollama_client:
+        await message.reply("Cannot connect to Ollama. Make sure it's running.")
+        return
+
+    print(f"Message from {message.author}: {content}")
+
+    user_entry = {"role": "user", "content": content}
+    save_message(user_entry["role"], user_entry["content"])
+
+    history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
+
+    try:
+        async with message.channel.typing():
+            response = ollama_client.chat(model=OLLAMA_MODEL, messages=history)
+            reply = response['message']['content']
+            print(f"Ollama response: {reply}")
+        save_message("assistant", reply)
+        await message.reply(reply)
+    except Exception as e:
+        print(f"Error with Ollama: {e}")
+        await message.reply(f"Something went wrong with my brain: {e}")
