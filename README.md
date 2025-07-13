@@ -177,3 +177,5 @@ Just don’t claim to be the original chili dog–loving Al.
 ## Author
 
 Built by [MyferIsADev (@myferr)](https://github.com/myferr/) using Python, Discord.py, and Ollama.
+
+###### [Terms of Service](https://al-bot-docs.vercel.app/terms.html) · [Privacy Policy](https://al-bot-docs.vercel.app/privacy.html)
