@@ -30,50 +30,63 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if message.author == client.user:
-        return
+        if message.author == client.user:
+            return
 
-    mention_id = f'<@{client.user.id}>'
-    mention_nick = f'<@!{client.user.id}>'
+        is_dm = isinstance(message.channel, discord.DMChannel)
 
-    contains_ping = mention_id in message.content or mention_nick in message.content
-    is_reply_to_bot = (
-        message.reference and message.reference.resolved
-        and message.reference.resolved.author == client.user
-    )
+        if is_dm:
+            content = message.content.strip()
+            if not content:
+                await message.channel.send("Hey! You didn't say anything.")
+                return
 
-    if not (contains_ping or is_reply_to_bot):
-        return
+        else:
+            mention_id = f'<@{client.user.id}>'
+            mention_nick = f'<@!{client.user.id}>'
 
-    content = message.content.replace(mention_id, '').replace(mention_nick, '').strip()
-    if not content:
-        await message.reply(f"Hey {message.author.mention}, you mentioned me but didn't say anything!")
-        return
+            contains_ping = mention_id in message.content or mention_nick in message.content
+            is_reply_to_bot = (
+                message.reference and message.reference.resolved
+                and message.reference.resolved.author == client.user
+            )
 
-    if not ollama_client:
-        await message.reply("Cannot connect to Ollama. Make sure it's running.")
-        return
+            if not (contains_ping or is_reply_to_bot):
+                return
 
-    print(f"Message from {message.author}: {content}")
+            content = message.content.replace(mention_id, '').replace(mention_nick, '').strip()
+            if not content:
+                await message.reply(f"Hey {message.author.mention}, you mentioned me but didn't say anything!")
+                return
 
-    user_entry = {"role": "user", "content": content}
-    save_message(user_entry["role"], user_entry["content"])
+        if not ollama_client:
+            await message.channel.send("Cannot connect to Ollama. Make sure it's running.")
+            return
 
-    history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
+        print(f"Message from {message.author}: {content}")
 
-    try:
-        async with message.channel.typing():
-            response = ollama_client.chat(model=OLLAMA_MODEL, messages=history)
-            reply = response['message']['content']
-            print(f"Ollama response: {reply}")
-        save_message("assistant", reply)
+        user_entry = {"role": "user", "content": content}
+        save_message(user_entry["role"], user_entry["content"])
 
-        chunks = split_message(reply)
-        await message.reply(chunks[0])
+        history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
 
-        for chunk in chunks[1:]:
-            await message.channel.send(chunk)
+        try:
+            async with message.channel.typing():
+                response = ollama_client.chat(model=OLLAMA_MODEL, messages=history)
+                reply = response['message']['content']
+                print(f"Ollama response: {reply}")
+            save_message("assistant", reply)
 
-    except Exception as e:
-        print(f"Error with Ollama: {e}")
-        await message.reply(f"Something went wrong with my brain: {e}")
+            chunks = split_message(reply)
+
+            if is_dm:
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+            else:
+                await message.reply(chunks[0])
+                for chunk in chunks[1:]:
+                    await message.channel.send(chunk)
+
+        except Exception as e:
+            print(f"Error with Ollama: {e}")
+            await message.channel.send(f"Something went wrong with my brain: {e}")
