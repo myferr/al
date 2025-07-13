@@ -1,0 +1,8 @@
+# ENV files
+
+.env
+*.env
+
+# Python
+.ropeproject/
+.ropeproject/**
