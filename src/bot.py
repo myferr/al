@@ -68,8 +68,12 @@ async def on_message(message):
             print(f"Ollama response: {reply}")
         save_message("assistant", reply)
 
-        for chunk in split_message(reply):
-            await message.channel.reply(chunk)
+        chunks = split_message(reply)
+        await message.reply(chunks[0])
+
+        for chunk in chunks[1:]:
+            await message.channel.send(chunk)
+
     except Exception as e:
         print(f"Error with Ollama: {e}")
         await message.reply(f"Something went wrong with my brain: {e}")
