@@ -9,3 +9,7 @@
 
 __pycache__/
 __pycache__/**
+
+# VitePress
+docs/.vitepress/dist
+docs/.vitepress/cache
