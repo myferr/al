@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from ollama_client import get_ollama_client, OLLAMA_MODEL, SYSTEM_PROMPT
 from memory import load_memory, save_message
-from settings import MEMORY_FILE, OLLAMA_HOST, UNCENSORED_MODEL, IMAGE_GEN_MODEL
+from settings import MEMORY_FILE, OLLAMA_HOST, UNCENSORED_MODEL, IMAGE_GEN_MODEL, BANNED
 from datetime import datetime
 import json
 import io
@@ -51,6 +51,14 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    user_id = str(message.author.id)
+    if user_id in BANNED:
+        try:
+            await message.author.send("You are not allowed to interact.")
+        except:
+            pass
+        return
+
     await client.process_commands(message)
 
     is_dm = isinstance(message.channel, discord.DMChannel)
@@ -84,8 +92,6 @@ async def on_message(message):
 
     print(f"Message from {message.author}: {content}")
 
-    user_entry = {"role": "user", "content": content}
-    user_id = str(message.author.id)
     display_name = message.author.display_name
 
     save_message(user_id, "user", content, display_name)
@@ -93,7 +99,6 @@ async def on_message(message):
     history = [{"role": "system", "content": f"You are talking with {display_name}. Be friendly."}]
     history += load_memory(user_id)
     history.append({"role": "user", "content": content})
-
 
     try:
         async with message.channel.typing():
@@ -118,11 +123,15 @@ async def on_message(message):
 @client.tree.command(name="uncensored", description="Use an uncensored model to generate a response (NSFW channels only).")
 @app_commands.describe(message="Your prompt for the uncensored model")
 async def uncensored(interaction: discord.Interaction, message: str):
+    user_id = str(interaction.user.id)
+    if user_id in BANNED:
+        await interaction.response.send_message("You are not allowed to interact.", ephemeral=True)
+        return
+
     if not interaction.channel.is_nsfw():
         await interaction.response.send_message("❌ This command only works in age-restricted (NSFW) channels.", ephemeral=True)
         return
 
-    # Defer safely, only if not deferred or responded
     try:
         if not interaction.response.is_done():
             await interaction.response.defer(thinking=True)
@@ -130,9 +139,7 @@ async def uncensored(interaction: discord.Interaction, message: str):
         print(f"Warning on defer in uncensored: {e}")
 
     try:
-        user_id = str(interaction.user.id)
         display_name = interaction.user.display_name
-
         save_message(user_id, "user", message, display_name)
 
         history = [{"role": "system", "content": f"You are chatting with {display_name}."}]
@@ -147,7 +154,7 @@ async def uncensored(interaction: discord.Interaction, message: str):
         log_uncensored({
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "uncensored": True,
-            "user_id": str(interaction.user.id),
+            "user_id": user_id,
             "prompt": message,
             "response": response
         })
@@ -166,6 +173,11 @@ pipe = None
 @client.tree.command(name="image", description="Generate an image from a prompt using a free CC0-licensed model.")
 @app_commands.describe(prompt="Describe what you want to see")
 async def image(interaction: discord.Interaction, prompt: str):
+    user_id = str(interaction.user.id)
+    if user_id in BANNED:
+        await interaction.response.send_message("You are not allowed to interact.", ephemeral=True)
+        return
+
     try:
         if not interaction.response.is_done():
             await interaction.response.defer(thinking=True)

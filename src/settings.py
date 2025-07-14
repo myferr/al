@@ -9,3 +9,4 @@ UNCENSORED_MODEL = "llama2-uncensored"
 OLLAMA_HOST = 'http://localhost:11434'
 MEMORY_FILE = 'memory.jsonl'
 IMAGE_GEN_MODEL = "aiyouthalliance/Free-Image-Generation-CC0"
+BANNED = []
