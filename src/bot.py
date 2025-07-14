@@ -3,9 +3,13 @@ from discord.ext import commands
 from discord import app_commands
 from ollama_client import get_ollama_client, OLLAMA_MODEL, SYSTEM_PROMPT
 from memory import load_memory, save_message
-from settings import MEMORY_FILE, OLLAMA_HOST, UNCENSORED_MODEL
+from settings import MEMORY_FILE, OLLAMA_HOST, UNCENSORED_MODEL, IMAGE_GEN_MODEL
 from datetime import datetime
 import json
+import io
+import torch
+from diffusers import DiffusionPipeline
+import numpy as np
 
 ollama_client = get_ollama_client()
 
@@ -106,8 +110,6 @@ async def on_message(message):
         print(f"Error with Ollama: {e}")
         await message.channel.send(f"Something went wrong with my brain: {e}")
 
-
-
 @client.tree.command(name="uncensored", description="Use an uncensored model to generate a response (NSFW channels only).")
 @app_commands.describe(message="Your prompt for the uncensored model")
 async def uncensored(interaction: discord.Interaction, message: str):
@@ -115,11 +117,15 @@ async def uncensored(interaction: discord.Interaction, message: str):
         await interaction.response.send_message("❌ This command only works in age-restricted (NSFW) channels.", ephemeral=True)
         return
 
-    await interaction.response.defer(thinking=True)
+    # Defer safely, only if not deferred or responded
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True)
+    except Exception as e:
+        print(f"Warning on defer in uncensored: {e}")
 
     try:
         user_entry = {"role": "user", "content": message}
-        # Load memory.jsonl for personality + conversation history
         history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
 
         response = ollama_client.chat(
@@ -143,3 +149,43 @@ async def uncensored(interaction: discord.Interaction, message: str):
 
     except Exception as e:
         await interaction.followup.send(f"Uncensored model failed: {e}")
+
+pipe = None
+
+@client.tree.command(name="image", description="Generate an image from a prompt using a free CC0-licensed model.")
+@app_commands.describe(prompt="Describe what you want to see")
+async def image(interaction: discord.Interaction, prompt: str):
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True)
+    except Exception as e:
+        print(f"Warning on defer in image command: {e}")
+
+    global pipe
+    try:
+        if pipe is None:
+            device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+            print(f"Loading pipeline on device: {device}")
+            pipe = DiffusionPipeline.from_pretrained(IMAGE_GEN_MODEL)
+            pipe = pipe.to(device)
+
+        generated_image = pipe(prompt).images[0]
+
+        arr = np.array(generated_image)
+        if np.all(arr == 0):
+            await interaction.followup.send("I cannot generate any NSFW or explicit content.")
+            return
+
+        image_bytes = io.BytesIO()
+        generated_image.save(image_bytes, format="PNG")
+        image_bytes.seek(0)
+
+        image_file = discord.File(image_bytes, filename="generated_image.png")
+        await interaction.followup.send(content=f"🖼️ Prompt: `{prompt}`", file=image_file)
+
+    except Exception as e:
+        print(f"Image generation error: {e}")
+        try:
+            await interaction.followup.send(f"❌ Failed to generate image: {e}")
+        except Exception as e2:
+            print(f"Also failed to send error message: {e2}")
