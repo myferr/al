@@ -212,3 +212,39 @@ async def image(interaction: discord.Interaction, prompt: str):
             await interaction.followup.send(f"❌ Failed to generate image: {e}")
         except Exception as e2:
             print(f"Also failed to send error message: {e2}")
+
+@client.tree.command(name="ask", description="Ask Al a question or say something directly.")
+@app_commands.describe(message="Your message for Al")
+async def ask(interaction: discord.Interaction, message: str):
+    user_id = str(interaction.user.id)
+    if user_id in BANNED:
+        await interaction.response.send_message("You are not allowed to interact.", ephemeral=True)
+        return
+
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True)
+    except Exception as e:
+        print(f"Warning on defer in ask command: {e}")
+
+    try:
+        display_name = interaction.user.display_name
+        save_message(user_id, "user", message, display_name)
+
+        history = [{"role": "system", "content": f"You are chatting with {display_name}. Be friendly."}]
+        history += load_memory(user_id)
+        history.append({"role": "user", "content": message})
+
+        response = ollama_client.chat(
+            model=OLLAMA_MODEL,
+            messages=history
+        )["message"]["content"]
+
+        save_message(user_id, "assistant", response, display_name)
+
+        chunks = split_message(response)
+        for chunk in chunks:
+            await interaction.followup.send(chunk)
+
+    except Exception as e:
+        await interaction.followup.send(f"❌ Something went wrong: {e}")
