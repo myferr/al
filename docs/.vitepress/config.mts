@@ -16,7 +16,7 @@ export default defineConfig({
         text: "Introduction",
         items: [
           { text: "Introduction", link: "/introduction" },
-          { text: "Interaction", link: "/Interaction" },
+          { text: "Interaction", link: "/interaction" },
           { text: "Features", link: "/features" },
         ],
       },
