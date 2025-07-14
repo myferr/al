@@ -85,16 +85,21 @@ async def on_message(message):
     print(f"Message from {message.author}: {content}")
 
     user_entry = {"role": "user", "content": content}
-    save_message(user_entry["role"], user_entry["content"])
+    user_id = str(message.author.id)
+    display_name = message.author.display_name
 
-    # Load memory.jsonl to get personality + conversation
-    history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
+    save_message(user_id, "user", content, display_name)
+
+    history = [{"role": "system", "content": f"You are talking with {display_name}. Be friendly."}]
+    history += load_memory(user_id)
+    history.append({"role": "user", "content": content})
+
 
     try:
         async with message.channel.typing():
             response = ollama_client.chat(model=OLLAMA_MODEL, messages=history)
             reply = response['message']['content']
-        save_message("assistant", reply)
+        save_message(user_id, "assistant", reply, display_name)
 
         chunks = split_message(reply)
 
@@ -125,8 +130,14 @@ async def uncensored(interaction: discord.Interaction, message: str):
         print(f"Warning on defer in uncensored: {e}")
 
     try:
-        user_entry = {"role": "user", "content": message}
-        history = [{"role": "system", "content": SYSTEM_PROMPT}] + load_memory() + [user_entry]
+        user_id = str(interaction.user.id)
+        display_name = interaction.user.display_name
+
+        save_message(user_id, "user", message, display_name)
+
+        history = [{"role": "system", "content": f"You are chatting with {display_name}."}]
+        history += load_memory(user_id)
+        history.append({"role": "user", "content": message})
 
         response = ollama_client.chat(
             model=UNCENSORED_MODEL,
