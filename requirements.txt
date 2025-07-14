@@ -7,3 +7,4 @@ accelerate>=0.20.0
 torch
 torchvision
 torchaudio
+numpy

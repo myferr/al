@@ -9,6 +9,7 @@ import json
 import io
 import torch
 from diffusers import DiffusionPipeline
+import numpy as np
 
 ollama_client = get_ollama_client()
 
@@ -154,7 +155,6 @@ pipe = None
 @client.tree.command(name="image", description="Generate an image from a prompt using a free CC0-licensed model.")
 @app_commands.describe(prompt="Describe what you want to see")
 async def image(interaction: discord.Interaction, prompt: str):
-    # Defer only if not already deferred or responded
     try:
         if not interaction.response.is_done():
             await interaction.response.defer(thinking=True)
@@ -171,12 +171,16 @@ async def image(interaction: discord.Interaction, prompt: str):
 
         generated_image = pipe(prompt).images[0]
 
+        arr = np.array(generated_image)
+        if np.all(arr == 0):
+            await interaction.followup.send("I cannot generate any NSFW or explicit content.")
+            return
+
         image_bytes = io.BytesIO()
         generated_image.save(image_bytes, format="PNG")
         image_bytes.seek(0)
 
         image_file = discord.File(image_bytes, filename="generated_image.png")
-
         await interaction.followup.send(content=f"🖼️ Prompt: `{prompt}`", file=image_file)
 
     except Exception as e:
