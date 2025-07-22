@@ -97,7 +97,8 @@ async def on_message(message):
     save_message(user_id, "user", content, display_name)
 
     history = [{"role": "system", "content": f"You are talking with {display_name}. Be friendly."}]
-    history += load_memory(user_id)
+    # Use RAG to get relevant context based on current message
+    history += load_memory(user_id, query=content)
     history.append({"role": "user", "content": content})
 
     try:
@@ -143,7 +144,8 @@ async def uncensored(interaction: discord.Interaction, message: str):
         save_message(user_id, "user", message, display_name)
 
         history = [{"role": "system", "content": f"You are chatting with {display_name}."}]
-        history += load_memory(user_id)
+        # Use RAG to get relevant context for uncensored model
+        history += load_memory(user_id, query=message)
         history.append({"role": "user", "content": message})
 
         response = ollama_client.chat(
@@ -232,7 +234,8 @@ async def ask(interaction: discord.Interaction, message: str):
         save_message(user_id, "user", message, display_name)
 
         history = [{"role": "system", "content": f"You are chatting with {display_name}. Be friendly."}]
-        history += load_memory(user_id)
+        # Use RAG to get relevant context for ask command
+        history += load_memory(user_id, query=message)
         history.append({"role": "user", "content": message})
 
         response = ollama_client.chat(
